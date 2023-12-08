@@ -5,12 +5,16 @@ from mygrad.tensor import Tensor
 import time
 import numpy as np
 
+PRINT_VALUES=False
 
 def helper_test_op(shps, teenygrad_fxn, mygrad_fxn=None, atol=1e-6, rtol=1e-3, grad_atol=1e-4, grad_rtol=1e-3, forward_only=True):
     if mygrad_fxn is None: mygrad_fxn = teenygrad_fxn
 
+    #inputs
     teeny, my = prepare_test_op(shps)
-
+    if PRINT_VALUES:
+        print(f"{teeny=}")
+        print(f"{my=}")
 
     st = time.monotonic()
     out = teenygrad_fxn(*teeny)
@@ -22,7 +26,7 @@ def helper_test_op(shps, teenygrad_fxn, mygrad_fxn=None, atol=1e-6, rtol=1e-3, g
 
 
     def compare(s, x, y, atol, rtol):
-        print(s, x, y)
+        if PRINT_VALUES: print(s, x, y)
         assert x.shape == y.shape, f"shape mismatch: mygrad={x.shape} | teeny={y.shape}"
         try:
             np.testing.assert_allclose(x, y, atol=atol, rtol=rtol)
