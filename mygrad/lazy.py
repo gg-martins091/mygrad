@@ -18,7 +18,7 @@ class LazyBuffer:
     @property
     def shape(self): return self._np.shape
 
-    #TODO: tipar esses parametros
+    #TODO: type theese params
     @staticmethod
     def loadop(op, shape, dtype, device, arg=None, src=None) -> LazyBuffer:
         # if op == LoadOps.RAND: return LazyBuffer(np.random.default_rng(arg).random(size=shape, dtype=dtype.np))
@@ -26,13 +26,13 @@ class LazyBuffer:
         elif op == LoadOps.EMPTY: return LazyBuffer(np.empty(shape, dtype=dtype.np))
         else: raise NotImplementedError(op)
 
-    def __add__(self, x: LazyBuffer):
-        return self._np + x._np
+    @staticmethod
+    def fromCPU(data) -> LazyBuffer:
+        return LazyBuffer(data)
 
 
     def e(self, op, *srcs:LazyBuffer):
         if op == BinaryOps.ADD: ret = self._np + srcs[0]._np
         else: raise NotImplementedError(op)
-
 
         return LazyBuffer(ret.astype(self.dtype.np if len(srcs) == 0 else max(self.dtype, *[s.dtype for s in srcs]).np, copy=False))
