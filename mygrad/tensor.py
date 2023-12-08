@@ -61,7 +61,7 @@ class Tensor():
     @property
     def shape(self) -> Tuple[int, ...]: return self.lazydata.shape
     @property
-    def dtype(self) -> DType: return self.dtype
+    def dtype(self) -> DType: return self.lazydata.dtype
 
     def add(self, x):
         # TODO: should add broadcast here in case of different shapes
