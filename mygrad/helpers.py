@@ -1,7 +1,9 @@
-from typing import Optional, Final
+from typing import Optional, Final, Tuple, Any
 from dataclasses import dataclass
 import numpy as np
 
+
+def all_int(x: Tuple[Any, ...]) -> bool: return all(isinstance(s, int) for s in x)
 @dataclass(frozen=True, order=True)
 class DType:
   priority: int  # this determines when things get upcasted

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Union, Optional, Type, ClassVar
+from typing import Union, Optional, Type, ClassVar, Tuple
 from mygrad.lazy import LazyBuffer
 from mygrad.ops import LoadOps, Device
-from mygrad.helpers import dtypes, DType
+from mygrad.helpers import all_int, dtypes, DType
 import numpy as np
 
 class Function:
@@ -35,6 +35,7 @@ class Tensor():
 
         self.requires_grad = requires_grad
 
+        if isinstance(data, LazyBuffer): assert dtype is None or dtype == data.dtype, "dtype does not match, and casting is not supported"
         if data.__class__ is list:
             assert dtype is None or dtype.np is not None, f"{dtype} does not have a numpy type"
             data = LazyBuffer.fromCPU(np.array([] if data is None else data, dtype=(dtype or Tensor.default_type).np))
@@ -48,10 +49,19 @@ class Tensor():
     def __repr__(self):
         return f"<Tensor {self.lazydata!r} on {self.device} with grad {(self.grad.lazydata if self.grad else None)!r}>"
 
-    def numpy(self): return self.lazydata._np
+    def detach(self) -> Tensor: return Tensor(self.lazydata, self.device, requires_grad=False)
+    def numpy(self):
+        assert all_int(self.shape), f"no numpy if shape is symbolic, whatever that means, {self.shape}"
+        assert self.dtype.np is not None, f"no numpy dtype for {self.dtype}"
+        # print(self.detach())
+        return self.lazydata._np
 
     @property
     def device(self) -> str: return self.lazydata.device
+    @property
+    def shape(self) -> Tuple[int, ...]: return self.lazydata.shape
+    @property
+    def dtype(self) -> DType: return self.dtype
 
     def add(self, x):
         # TODO: should add broadcast here in case of different shapes
