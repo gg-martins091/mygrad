@@ -1,8 +1,8 @@
-
 from enum import Enum, auto
 from typing import Optional
 
 class UnaryOps(Enum): NEG = auto()
+class ReduceOps(Enum): SUM = auto(); MAX = auto()
 class BinaryOps(Enum):
   ADD = auto();
   MUL = auto();

@@ -12,6 +12,8 @@ STV = getenv("STV") # show tensor values, is really lazydata values, but w/e
 
 def all_int(x: Tuple[Any, ...]) -> bool: return all(isinstance(s, int) for s in x)
 def argfix(*x): return tuple(x[0]) if x and x[0].__class__ in (list, tuple) else x
+def argsort(x): return type(x)(sorted(range(len(x)), key=x.__getitem__))
+
 @dataclass(frozen=True, order=True)
 class DType:
   priority: int  # this determines when things get upcasted

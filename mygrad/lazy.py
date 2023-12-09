@@ -1,8 +1,8 @@
 # para tiper o retorno do metodo com o tipo da classe
 from __future__ import annotations
 import numpy as np
-from mygrad.ops import LoadOps, BinaryOps, UnaryOps
-from mygrad.helpers import dtypes, DType, STV
+from mygrad.ops import LoadOps, BinaryOps, UnaryOps, ReduceOps
+from mygrad.helpers import dtypes, DType, STV, DEBUG
 
 class LazyBuffer:
     device = "CPU"
@@ -56,5 +56,15 @@ class LazyBuffer:
 
         return LazyBuffer(ret.astype(self.dtype.np if len(srcs) == 0 else max(self.dtype, *[s.dtype for s in srcs]).np, copy=False))
 
+    def r(self, op, new_shape):
+        if DEBUG >= 1: print(op, self, new_shape)
+        assert len(self.shape) == len(new_shape), "reduce shapes must have same dimensions"
+        axis = tuple(i for i,(a,b) in enumerate(zip(self.shape, new_shape)) if a != b)
+        if op == ReduceOps.SUM: return LazyBuffer(self._np.sum(axis, dtype=self._np.dtype, keepdims=True))
+        elif op == ReduceOps.MAX: return LazyBuffer(self._np.max(axis, keepdims=True))
+        else: raise NotImplementedError(op)
+
     # move ops
     def reshape(self, shape) -> LazyBuffer: return LazyBuffer(self._np.reshape(shape))
+    def expand(self, arg): return LazyBuffer(np.broadcast_to(self._np, arg))
+    def permute(self, arg): return LazyBuffer(self._np.transpose(arg))

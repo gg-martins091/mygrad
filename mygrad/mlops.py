@@ -1,8 +1,8 @@
 from __future__ import annotations
 from mygrad.lazy import LazyBuffer
 from mygrad.tensor import Function
-from mygrad.ops import LoadOps, BinaryOps, UnaryOps
-from mygrad.helpers import DType
+from mygrad.ops import LoadOps, BinaryOps, UnaryOps, ReduceOps
+from mygrad.helpers import DType, Tuple, argsort
 
 
 class Neg(Function):
@@ -51,3 +51,19 @@ class Reshape(Function):
 
   def backward(self, grad_output: LazyBuffer) -> LazyBuffer:
     return grad_output.reshape(self.input_shape)
+
+class Expand(Function):
+  def forward(self, x:LazyBuffer, shape:Tuple[int, ...]) -> LazyBuffer:
+    self.input_shape = x.shape
+    return x.expand(shape)
+
+  def backward(self, grad_output:LazyBuffer) -> LazyBuffer:
+    return grad_output.r(ReduceOps.SUM, self.input_shape)
+
+class Permute(Function):
+  def forward(self, x:LazyBuffer, order:Tuple[int, ...]) -> LazyBuffer:
+    self.input_order = order
+    return x.permute(order)
+
+  def backward(self, grad_output:LazyBuffer) -> LazyBuffer:
+    return grad_output.permute(argsort(self.input_order))

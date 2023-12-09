@@ -139,6 +139,12 @@ class Tensor():
     def __ipow__(self, x) -> Tensor: return self.assign(self.pow(x))
     def __imatmul__(self, x) -> Tensor: return self.assign(self.matmul(x))
 
+    # *** creation helper functions ***
+    @staticmethod
+    def full(shape: Tuple[int, ...], fill_value, **kwargs) -> Tensor: return Tensor(fill_value, **kwargs).reshape([1]*len(new_shape := argfix(shape))).expand(new_shape)
+    @staticmethod
+    def zeros(*shape, **kwargs) -> Tensor: return Tensor.full(argfix(*shape), 0, **kwargs)
+
 
     # *** cast ops ***
     def cast(self, dtype:DType) -> Tensor: return mlops.Cast.apply(self, dtype=dtype) if self.dtype != dtype else self
@@ -147,6 +153,14 @@ class Tensor():
     def reshape(self, shape, *args) -> Tensor:
         # new_shape = argfix(shape, *args)
         return mlops.Reshape.apply(self,shape=shape)
+    def expand(self, shape, *args) -> Tensor: return mlops.Expand.apply(self, shape=tuple([x if x != -1 else s for s,x in zip(self.shape, argfix(shape, *args))]))
+    def permute(self, order, *args) -> Tensor: return mlops.Permute.apply(self, order=argfix(order, *args))
+
+    # *** movement hlops ***
+    def transpose(self, ax1=1, ax2=0) -> Tensor:
+        order = list(range(len(self.shape)))
+        order[ax1], order[ax2] = order[ax2], order[ax1]
+        return self.permute(order)
 
     # *** creation llop entrypoint ***
     @staticmethod
@@ -165,7 +179,6 @@ class Tensor():
     def linear(self, weights:Tensor, bias:Optional[Tensor]=None):
         ret = self.mul(weights) if len(weights.shape) == 1 else self.dot(weights)
         return ret.add(bias) if bias is not None else ret
-
 
     # *** rng hlops ***
 
