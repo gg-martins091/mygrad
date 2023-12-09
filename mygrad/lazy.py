@@ -33,6 +33,13 @@ class LazyBuffer:
 
     def e(self, op, *srcs:LazyBuffer):
         if op == BinaryOps.ADD: ret = self._np + srcs[0]._np
+        elif op == BinaryOps.SUB: ret = self._np - srcs[0]._np
+        elif op == BinaryOps.MUL: ret = self._np * srcs[0]._np
+        elif op == BinaryOps.DIV: ret = self._np / srcs[0]._np
+
+        # theese should not be here
+        elif op == BinaryOps.POW: ret = self._np ** srcs[0]._np
+        elif op == BinaryOps.MATMUL: ret = self._np @ srcs[0]._np
         else: raise NotImplementedError(op)
 
         return LazyBuffer(ret.astype(self.dtype.np if len(srcs) == 0 else max(self.dtype, *[s.dtype for s in srcs]).np, copy=False))

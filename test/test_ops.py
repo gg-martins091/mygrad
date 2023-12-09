@@ -68,7 +68,38 @@ class TestOps(unittest.TestCase):
     def test_add_mat(self):
         helper_test_op([[[2,3],[4,5]],[[6,7],[8,9]]], lambda x, y: x+y, Tensor.add)
 
+    def test_sub_number(self):
+        helper_test_op([1,4], lambda x, y: x-y, Tensor.sub)
+    def test_sub_list(self):
+        helper_test_op([[2,3,4],[5,6,8]], lambda x, y: x-y, Tensor.sub)
+    def test_sub_mat(self):
+        helper_test_op([[[2,3],[4,5]],[[6,7],[8,9]]], lambda x, y: x-y, Tensor.sub)
 
+    def test_mul_number(self):
+        helper_test_op([1,4], lambda x, y: x*y, Tensor.mul)
+    def test_mul_list(self):
+        helper_test_op([[2,3,4],[5,6,8]], lambda x, y: x*y, Tensor.mul)
+    def test_mul_mat(self):
+        helper_test_op([[[2,3],[4,5]],[[6,7],[8,9]]], lambda x, y: x*y, Tensor.mul)
+
+    def test_div_number(self):
+        helper_test_op([1,4], lambda x, y: x/y, Tensor.div)
+    def test_div_list(self):
+        helper_test_op([[2,3,4],[5,6,8]], lambda x, y: x/y, Tensor.div)
+    def test_div_mat(self):
+        helper_test_op([[[2,3],[4,5]],[[6,7],[8,9]]], lambda x, y: x/y, Tensor.div)
+
+    def test_pow_number(self):
+        helper_test_op([3,4], lambda x, y: x**y, Tensor.pow)
+    def test_pow_list(self):
+        helper_test_op([[2,3,4],[5,6,8]], lambda x, y: x**y, Tensor.pow)
+    def test_pow_mat(self):
+        helper_test_op([[[2,3],[4,5]],[[6,7],[8,9]]], lambda x, y: x**y, Tensor.pow)
+
+    def test_matmul_list(self):
+        helper_test_op([[2,3,4],[5,6,8]], lambda x, y: x@y, Tensor.matmul)
+    def test_matmul_mat(self):
+        helper_test_op([[[2,3],[4,5]],[[6,7],[8,9]]], lambda x, y: x@y, Tensor.matmul)
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -2,7 +2,19 @@
 from enum import Enum, auto
 from typing import Optional
 
-class BinaryOps(Enum): ADD = auto(); MUL = auto()
+class BinaryOps(Enum):
+  ADD = auto();
+  MUL = auto();
+  DIV = auto();
+  SUB = auto();
+  MOD = auto();
+  MAX = auto();
+  CMPLT = auto();
+
+  # theese should no be here
+  POW = auto();
+  MATMUL = auto();
+
 class LoadOps(Enum): EMPTY = auto(); RAND = auto(); CONST = auto(); FROM = auto(); CONTIGUOUS = auto(); CUSTOM = auto()
 
 class Device:

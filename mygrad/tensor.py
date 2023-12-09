@@ -53,7 +53,8 @@ class Tensor():
     def numpy(self):
         assert all_int(self.shape), f"no numpy if shape is symbolic, whatever that means, {self.shape}"
         assert self.dtype.np is not None, f"no numpy dtype for {self.dtype}"
-        # print(self.detach())
+        # will implement this when needed
+        #return self.detach().cast(dtypes.from_np(self.dtype.np)).contiguous().to('CPU').realize().lazydata.realized.toCPU().reshape(self.shape)
         return self.lazydata._np
 
     @property
@@ -64,8 +65,29 @@ class Tensor():
     def dtype(self) -> DType: return self.lazydata.dtype
 
     def add(self, x):
-        # TODO: should add broadcast here in case of different shapes
+        # TODO: should add broadcast here in case of different shapes, but only needed for other devices? numpy does it for us
         return mlops.Add.apply(self, x)
+    def sub(self, x):
+        return mlops.Sub.apply(self, x)
+    def mul(self, x):
+        return mlops.Mul.apply(self, x)
+    def div(self, x):
+        return mlops.Div.apply(self, x)
+    def pow(self, x):
+        #TODO: understand what is that wizardry on tinygrad's pow
+        # this should not be a binary op
+        return mlops.Pow.apply(self, x)
+    def matmul(self, x):
+        #TODO: understand what is that wizardry on tinygrad's matmul
+        # this should not be a binary op
+        return mlops.MatMul.apply(self, x)
+
 
     def __add__(self, x) -> Tensor: return self.add(x)
+    def __sub__(self, x) -> Tensor: return self.sub(x)
+    def __mul__(self, x) -> Tensor: return self.mul(x)
+    def __truediv__(self, x) -> Tensor: return self.div(x)
+    def __pow__(self, x) -> Tensor: return self.pow(x)
+    def __matmul__(self, x) -> Tensor: return self.matmul(x)
+
 
