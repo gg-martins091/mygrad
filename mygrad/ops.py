@@ -2,6 +2,7 @@
 from enum import Enum, auto
 from typing import Optional
 
+class UnaryOps(Enum): NEG = auto()
 class BinaryOps(Enum):
   ADD = auto();
   MUL = auto();

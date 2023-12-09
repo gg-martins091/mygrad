@@ -4,6 +4,7 @@ import numpy as np
 
 
 def all_int(x: Tuple[Any, ...]) -> bool: return all(isinstance(s, int) for s in x)
+def argfix(*x): return tuple(x[0]) if x and x[0].__class__ in (list, tuple) else x
 @dataclass(frozen=True, order=True)
 class DType:
   priority: int  # this determines when things get upcasted
@@ -16,9 +17,13 @@ class DType:
 
 class dtypes:
   @staticmethod
+  def is_float(x: DType) -> bool: return x in (dtypes.float16, dtypes.float32, dtypes.float64)
+  @staticmethod
   def from_np(x) -> DType: return DTYPES_DICT[np.dtype(x).name]
+  float16: Final[DType] = DType(9, 2, "half", np.float16)
   float32: Final[DType] = DType(10, 4, "float", np.float32)
   float = float32
+  float64: Final[DType] = DType(11, 8, "double", np.float64)
 
 
 DTYPES_DICT = {k: v for k, v in dtypes.__dict__.items() if not k.startswith('__') and not callable(v) and not v.__class__ == staticmethod}

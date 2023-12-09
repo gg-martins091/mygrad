@@ -1,7 +1,7 @@
 # para tiper o retorno do metodo com o tipo da classe
 from __future__ import annotations
 import numpy as np
-from mygrad.ops import LoadOps, BinaryOps
+from mygrad.ops import LoadOps, BinaryOps, UnaryOps
 from mygrad.helpers import dtypes
 
 class LazyBuffer:
@@ -21,7 +21,10 @@ class LazyBuffer:
     #TODO: type theese params
     @staticmethod
     def loadop(op, shape, dtype, device, arg=None, src=None) -> LazyBuffer:
-        # if op == LoadOps.RAND: return LazyBuffer(np.random.default_rng(arg).random(size=shape, dtype=dtype.np))
+        print()
+        if op == LoadOps.RAND:
+            np.random.default_rng(arg).random(size=shape, dtype=dtype.np)
+            return LazyBuffer(np.random.default_rng(arg).random(size=shape, dtype=dtype.np))
         if op == LoadOps.CONST: return LazyBuffer(np.full(shape, arg, dtype=dtype.np))
         elif op == LoadOps.EMPTY: return LazyBuffer(np.empty(shape, dtype=dtype.np))
         else: raise NotImplementedError(op)
@@ -31,8 +34,16 @@ class LazyBuffer:
         return LazyBuffer(data)
 
 
+    def const(self, v) -> LazyBuffer:
+        # return LazyBuffer(np.full_like(self._np, v))
+
+        # this one I tried implementing myself, it worked, but turns out it was closer to tinygrad's implementation than teenygrad's.
+        # is that because teenygrad assumes only one device? i'll keep my shot at it, it is still different from tiny's, but lets see...
+        return LazyBuffer.loadop(LoadOps.CONST, self.shape, self.dtype, self.device, v)
+
     def e(self, op, *srcs:LazyBuffer):
-        if op == BinaryOps.ADD: ret = self._np + srcs[0]._np
+        if op == UnaryOps.NEG: ret = -self._np
+        elif op == BinaryOps.ADD: ret = self._np + srcs[0]._np
         elif op == BinaryOps.SUB: ret = self._np - srcs[0]._np
         elif op == BinaryOps.MUL: ret = self._np * srcs[0]._np
         elif op == BinaryOps.DIV: ret = self._np / srcs[0]._np

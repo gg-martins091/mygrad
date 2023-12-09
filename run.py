@@ -1,8 +1,20 @@
-from teenygrad.tensor import Tensor
+from mygrad.tensor import Tensor
 
 # a = Tensor([1.5, 2])
 # b = Tensor([2.3, 1])
 
-a = Tensor([2,4])
-b = Tensor([2,5])
-print((a @ b).numpy())
+class Linear:
+    def __init__(self, in_features, out_features, bias=True, initialization: str='kaiming_uniform'):
+        self.weight = getattr(Tensor, initialization)(out_features, in_features)
+        # self.bias = Tensor.zeros(out_features) if bias else None
+
+
+
+a = Tensor([[2,3],[4,5]])
+b = Tensor([[2,6],[8,9]])
+# print((a.linear(b)).numpy())
+
+# Net = Linear(784, 128, bias=False)
+
+print((Tensor([1,2]) ** 1.0).numpy())
+# print(Tensor.kaiming_uniform(784, 128))

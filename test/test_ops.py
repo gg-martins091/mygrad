@@ -59,7 +59,6 @@ def prepare_test_op(shps):
 
     return teeny, my
 
-
 class TestOps(unittest.TestCase):
     def test_add_number(self):
         helper_test_op([1,4], lambda x, y: x+y, Tensor.add)
@@ -100,6 +99,21 @@ class TestOps(unittest.TestCase):
         helper_test_op([[2,3,4],[5,6,8]], lambda x, y: x@y, Tensor.matmul)
     def test_matmul_mat(self):
         helper_test_op([[[2,3],[4,5]],[[6,7],[8,9]]], lambda x, y: x@y, Tensor.matmul)
+
+    # *** nn functions ***
+    def test_linear_diffshapes(self):
+        helper_test_op([[2,3],[4]], lambda x, y: x.linear(y), Tensor.linear)
+    def test_linear_list(self):
+        helper_test_op([[2,3,4],[5,6,8]], lambda x, y: x.linear(y), Tensor.linear)
+    def test_linear_mat(self):
+        helper_test_op([[[2,3],[4,5]],[[6,7],[8,9]]], lambda x, y: x.linear(y), Tensor.linear)
+
+    """TODO: how to test
+    Tensor([2,3]) * 2?
+    Tensor([2,3]) + 2?
+    and so on...
+    change in prepare_test_op because it transforms everything to tensor
+    """
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
