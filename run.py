@@ -16,5 +16,4 @@ b = Tensor([[2,6],[8,9]])
 
 # Net = Linear(784, 128, bias=False)
 
-print((Tensor([1,2]) ** 1.0).numpy())
-# print(Tensor.kaiming_uniform(784, 128))
+print(Tensor.kaiming_uniform(784, 128))

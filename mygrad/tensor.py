@@ -67,8 +67,8 @@ class Tensor():
     def dtype(self) -> DType: return self.lazydata.dtype
 
 
-    # teenygrads assign is basically the same as tinygrad which does a bunch of stuff
-    # i think this is fine
+    # TODO: understand teenygrad's assign
+    # i think for now this is fine
     def assign(self, x) -> Tensor:
         self.lazydata = x.lazydata
         return self
@@ -78,7 +78,6 @@ class Tensor():
 
     # *** binary mlops ***
     def _broadcasted(self, y: Union[Tensor, float], reverse=False) -> Tuple[Tensor,Tensor]:
-        print("_broadcasted")
         # this is not yet broadcasting anything, it is simply turning y into a Tensor if it is not one
         x: Tensor = self
         if not isinstance(y, Tensor):
@@ -126,6 +125,29 @@ class Tensor():
     def __pow__(self, x) -> Tensor: return self.pow(x)
     def __matmul__(self, x) -> Tensor: return self.matmul(x)
 
+    def __radd__(self, x) -> Tensor: return self.add(x, reverse=True)
+    def __rsub__(self, x) -> Tensor: return self.sub(x, reverse=True)
+    def __rmul__(self, x) -> Tensor: return self.mul(x, reverse=True)
+    def __rtruediv__(self, x) -> Tensor: return self.div(x, reverse=True)
+    def __rpow__(self, x) -> Tensor: return self.pow(x, reverse=True)
+    def __rmatmul__(self, x) -> Tensor: return self.matmul(x, reverse=True)
+
+    def __iadd__(self, x) -> Tensor: return self.assign(self.add(x))
+    def __isub__(self, x) -> Tensor: return self.assign(self.sub(x))
+    def __imul__(self, x) -> Tensor: return self.assign(self.mul(x))
+    def __itruediv__(self, x) -> Tensor: return self.assign(self.div(x))
+    def __ipow__(self, x) -> Tensor: return self.assign(self.pow(x))
+    def __imatmul__(self, x) -> Tensor: return self.assign(self.matmul(x))
+
+
+    # *** cast ops ***
+    def cast(self, dtype:DType) -> Tensor: return mlops.Cast.apply(self, dtype=dtype) if self.dtype != dtype else self
+
+    # *** movement mlops ***
+    def reshape(self, shape, *args) -> Tensor:
+        # new_shape = argfix(shape, *args)
+        return mlops.Reshape.apply(self,shape=shape)
+
     # *** creation llop entrypoint ***
     @staticmethod
     def _loadop(op, sz, device:Optional[str]=None, dtype:Optional[DType]=None, arg=None, **kwargs):
@@ -136,7 +158,7 @@ class Tensor():
     @staticmethod
     def rand(*shape, **kwargs):
         Tensor._seed += 1
-        return Tensor._loadop(LoadOps.RAND, math.prod((shape:=argfix(*shape))), arg=Tensor._seed, **kwargs)#.reshape(shape)
+        return Tensor._loadop(LoadOps.RAND, math.prod((shape:=argfix(*shape))), arg=Tensor._seed, **kwargs).reshape(shape)
 
     # *** functional nn ops ***
 
@@ -150,7 +172,8 @@ class Tensor():
     @staticmethod
     def uniform(*shape, low=0.0, high=1.0, **kwargs) -> Tensor:
         dtype = kwargs.pop('dtype', Tensor.default_type)
-        return ((high-low) * Tensor.rand(*shape, **kwargs)).cast(dtype) + low
+        ret = (high-low) * Tensor.rand(*shape, **kwargs)
+        return ret.cast(dtype) + low
 
     @staticmethod
     def kaiming_uniform(*shape, a:float = 0.01, **kwargs) -> Tensor:

@@ -1,7 +1,14 @@
 from typing import Optional, Final, Tuple, Any
 from dataclasses import dataclass
 import numpy as np
+import os
+import functools
 
+@functools.lru_cache(maxsize=None)
+def getenv(key, default=0): return type(default)(os.getenv(key, default))
+
+DEBUG = getenv("DEBUG")
+STV = getenv("STV") # show tensor values, is really lazydata values, but w/e
 
 def all_int(x: Tuple[Any, ...]) -> bool: return all(isinstance(s, int) for s in x)
 def argfix(*x): return tuple(x[0]) if x and x[0].__class__ in (list, tuple) else x
