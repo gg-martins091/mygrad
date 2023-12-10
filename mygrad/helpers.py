@@ -34,6 +34,7 @@ class dtypes:
   def is_float(x: DType) -> bool: return x in (dtypes.float16, dtypes.float32, dtypes.float64)
   @staticmethod
   def from_np(x) -> DType: return DTYPES_DICT[np.dtype(x).name]
+  bool: Final[DType] = DType(0, 1, "bool", np.bool_)
   float16: Final[DType] = DType(9, 2, "half", np.float16)
   float32: Final[DType] = DType(10, 4, "float", np.float32)
   float = float32

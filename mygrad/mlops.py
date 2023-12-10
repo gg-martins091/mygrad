@@ -11,6 +11,10 @@ class Neg(Function):
   def forward(self, x: LazyBuffer) -> LazyBuffer: return x.e(UnaryOps.NEG, x)
   def backward(self, x: LazyBuffer) -> LazyBuffer: return x.e(UnaryOps.NEG, x)
 
+class Less(Function):
+  def forward(self, x:LazyBuffer, y:LazyBuffer) -> LazyBuffer:
+    return x.e(BinaryOps.CMPLT, y)
+
 class Add(Function):
   def forward(self, x: LazyBuffer, y: LazyBuffer) -> LazyBuffer:
     return x.e(BinaryOps.ADD, y)

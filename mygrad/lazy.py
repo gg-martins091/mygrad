@@ -74,7 +74,6 @@ class LazyBuffer:
 
     # move ops
     def reshape(self, shape) -> LazyBuffer:
-        print(self)
         return LazyBuffer(self._np.reshape(shape))
     def expand(self, arg): return LazyBuffer(np.broadcast_to(self._np, arg))
     def permute(self, arg): return LazyBuffer(self._np.transpose(arg))

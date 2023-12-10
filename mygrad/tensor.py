@@ -68,6 +68,8 @@ class Tensor():
     def __repr__(self):
         return f"<Tensor {self.lazydata!r} on {self.device} with grad {(self.grad.lazydata if self.grad else None)!r}>"
 
+    def __hash__(self): return id(self)
+
     def detach(self) -> Tensor: return Tensor(self.lazydata, self.device, requires_grad=False)
     def numpy(self):
         assert all_int(self.shape), f"no numpy if shape is symbolic, whatever that means, {self.shape}"
@@ -144,14 +146,22 @@ class Tensor():
 
     # *** binary mlops ***
     def _broadcasted(self, y: Union[Tensor, float], reverse=False) -> Tuple[Tensor,Tensor]:
-        # this is not yet broadcasting anything, it is simply turning y into a Tensor if it is not one
         x: Tensor = self
         if not isinstance(y, Tensor):
-            y = Tensor(y, device=self.device, requires_grad=False, dtype=self.dtype)
-
+            if 0 in x.shape: return x, x.full_like(y)
+            y = Tensor(y, device=self.device, requires_grad=False, dtype=self.dtype if self.dtype != dtypes.bool else dtypes.float32)
         if reverse: x, y = y, x
+        if (xshape:=x.shape) == (yshape:=y.shape): return (x, y)
 
-        return x, y
+        shape_delta = len(xshape) - len(yshape)
+        if shape_delta > 0: y = y.reshape((1,) * shape_delta + yshape)
+        elif shape_delta < 0: x = x.reshape((1,) * -shape_delta + xshape)
+        if (xshape:=x.shape) == (yshape:=y.shape): return (x, y)
+
+        shape_ret = tuple([max(x, y) for x, y in zip(xshape, yshape)])
+        if xshape != shape_ret: x = x.expand(shape_ret)
+        if yshape != shape_ret: y = y.expand(shape_ret)
+        return (x, y)
 
 
     # *** processing ops ***
@@ -243,6 +253,11 @@ class Tensor():
     def __ipow__(self, x) -> Tensor: return self.assign(self.pow(x))
     def __imatmul__(self, x) -> Tensor: return self.assign(self.matmul(x))
 
+    def __lt__(self, x) -> Tensor: return mlops.Less.apply(*self._broadcasted(x, False))
+    def __gt__(self, x) -> Tensor: return mlops.Less.apply(*self._broadcasted(x, True))
+    def __ne__(self, x) -> Tensor: return (self < x) + (self > x)
+    def __eq__(self, x) -> Tensor: return 1.0-(self != x)
+
     # *** creation helper functions ***
     @staticmethod
     def full(shape: Tuple[int, ...], fill_value, **kwargs) -> Tensor: return Tensor(fill_value, **kwargs).reshape([1]*len(new_shape := argfix(shape))).expand(new_shape)
@@ -303,6 +318,16 @@ class Tensor():
         m, _, ss = self._softmax(axis)
         return m - ss.log()
 
+    def argmax(self, axis=None, keepdim=False):
+        if axis is None:
+            idx = (self == self.max(axis)) * Tensor.arange(math.prod(self.shape)-1,-1,-1, dtype=dtypes.int32, requires_grad=False, device=self.device).reshape(self.shape)
+            return math.prod(self.shape) - idx.max() - 1
+        axis = axis + len(self.shape) if axis < 0 else axis
+        m = self == self.max(axis=axis, keepdim=True)
+        idx = m * Tensor.arange(self.shape[axis]-1,-1,-1, dtype=dtypes.int32, requires_grad=False, device=self.device).reshape(self.shape[axis], *[1]*(self.ndim-axis-1))
+        return self.shape[axis]-idx.max(axis=axis, keepdim=keepdim)-1
+    def argmin(self, axis=None, keepdim=False): return (-self).argmax(axis=axis, keepdim=keepdim)
+
 
     def slice(self, arg:Sequence[Optional[Tuple[int, int]]], value:float=0) -> Tensor:
         arg_ = tuple([a if a is not None else (0,s) for s,a in zip(self.shape, arg)])
@@ -319,8 +344,8 @@ class Tensor():
 
     # *** movement mlops ***
     def reshape(self, shape, *args) -> Tensor:
-        # new_shape = argfix(shape, *args)
-        return mlops.Reshape.apply(self,shape=shape)
+        new_shape = argfix(shape, *args)
+        return mlops.Reshape.apply(self,shape=new_shape)
     def expand(self, shape, *args) -> Tensor: return mlops.Expand.apply(self, shape=tuple([x if x != -1 else s for s,x in zip(self.shape, argfix(shape, *args))]))
     def permute(self, order, *args) -> Tensor: return mlops.Permute.apply(self, order=argfix(order, *args))
     def pad(self, arg:Tuple[Optional[Tuple[int, int]], ...], value:float=0.0) -> Tensor:
@@ -430,6 +455,8 @@ class Tensor():
         order[ax1], order[ax2] = order[ax2], order[ax1]
         return self.permute(order)
 
+    def flatten(self, start_dim=0): return self.reshape(shape=self.shape[:start_dim] + (-1,))
+
     # *** creation llop entrypoint ***
     @staticmethod
     def _loadop(op, sz, device:Optional[str]=None, dtype:Optional[DType]=None, arg=None, **kwargs):
@@ -444,8 +471,6 @@ class Tensor():
 
     # *** functional nn ops ***
     def linear(self, weights:Tensor, bias:Optional[Tensor]=None):
-        print(f"{self=}")
-        print(f"{weights=}")
         ret = self.mul(weights) if len(weights.shape) == 1 else self.dot(weights)
         return ret.add(bias) if bias is not None else ret
 
@@ -481,3 +506,4 @@ class Tensor():
     # convenience
     @property
     def ndim(self) -> int: return len(self.shape)
+    def numel(self) -> int: return math.prod(self.shape)

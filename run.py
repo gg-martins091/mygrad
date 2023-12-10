@@ -27,7 +27,7 @@ def fetch_mnist(tensors=False):
 class Linear:
     def __init__(self, in_features, out_features, bias=False, initialization: str='kaiming_uniform'):
         self.weight = getattr(Tensor, initialization)(out_features, in_features)
-        print(self.weight)
+        print(f"{self.weight=}")
         self.bias = Tensor.zeros(out_features) if bias else None
 
     def __call__(self, x):
@@ -55,15 +55,15 @@ print("##### FETCH MNIST")
 X_train, Y_train, X_test, Y_test = fetch_mnist()
 
 with Tensor.train():
-    for step in range(1):
+    for step in range(10):
         samp = np.random.randint(0, X_train.shape[0], size=(64))
-        print(f"{samp=}")
+        # print(f"{samp=}")
 
         batch = Tensor(X_train[samp], requires_grad=False)
-        print(f"{batch=}")
+        # print(f"{batch=}")
 
         labels = Tensor(Y_train[samp])
-        print(f"{labels=}")
+        # print(f"{labels=}")
 
         out = net(batch)
 
@@ -76,9 +76,11 @@ with Tensor.train():
         opt.step()
 
         pred = out.argmax(axis=-1)
+        # print(f"{pred=}")
+        # print(f"{labels=}")
 
         acc = (pred == labels).mean()
 
-        if step % 100 == 0:
+        if step % 1 == 0:
             print(f"Step {step+1} | Loss: {loss.numpy()} | Accuracy: {acc.numpy()}")
 
