@@ -81,7 +81,7 @@ def helper_test_op(data, atol=1e-6, rtol=1e-3, grad_atol=1e-4, grad_rtol=1e-3, f
 
 
     def compare(s, x, y, atol, rtol):
-        if PRINT_VALUES: print(s, x, y)
+        if DEBUG >= 1: print(s, x, y)
         assert x.shape == y.shape, f"shape mismatch: mygrad={x.shape} | teeny={y.shape}"
         try:
             np.testing.assert_allclose(x, y, atol=atol, rtol=rtol)

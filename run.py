@@ -1,5 +1,26 @@
-from mygrad.tensor import Tensor
 
+# from teenygrad.tensor import Tensor
+# from tinygrad.helpers import fetch
+# from tinygrad.helpers import dtypes
+# from teenygrad.nn.optim import SGD
+
+from mygrad.tensor import Tensor
+from mygrad.helpers import fetch, dtypes
+from mygrad.nn.optim import SGD
+
+import gzip
+import numpy as np
+
+
+def fetch_mnist(tensors=False):
+  parse = lambda file: np.frombuffer(gzip.open(file).read(), dtype=np.uint8).copy()
+  BASE_URL = "https://storage.googleapis.com/cvdf-datasets/mnist/"   # http://yann.lecun.com/exdb/mnist/ lacks https
+  X_train = parse(fetch(f"{BASE_URL}train-images-idx3-ubyte.gz"))[0x10:].reshape((-1, 28*28)).astype(np.float32)
+  Y_train = parse(fetch(f"{BASE_URL}train-labels-idx1-ubyte.gz"))[8:]
+  X_test = parse(fetch(f"{BASE_URL}t10k-images-idx3-ubyte.gz"))[0x10:].reshape((-1, 28*28)).astype(np.float32)
+  Y_test = parse(fetch(f"{BASE_URL}t10k-labels-idx1-ubyte.gz"))[8:]
+  if tensors: return Tensor(X_train).reshape(-1, 1, 28, 28), Tensor(Y_train), Tensor(X_test).reshape(-1, 1, 28, 28), Tensor(Y_test)
+  else: return X_train, Y_train, X_test, Y_test
 # a = Tensor([1.5, 2])
 # b = Tensor([2.3, 1])
 
@@ -28,6 +49,36 @@ class TinyNet:
 
 net = TinyNet()
 
-a = Tensor.rand((128, 784))
+opt = SGD([net.l1.weight, net.l2.weight], lr=3e-4)
 
-print(net(a).numpy())
+print("##### FETCH MNIST")
+X_train, Y_train, X_test, Y_test = fetch_mnist()
+
+with Tensor.train():
+    for step in range(1):
+        samp = np.random.randint(0, X_train.shape[0], size=(64))
+        print(f"{samp=}")
+
+        batch = Tensor(X_train[samp], requires_grad=False)
+        print(f"{batch=}")
+
+        labels = Tensor(Y_train[samp])
+        print(f"{labels=}")
+
+        out = net(batch)
+
+        loss = out.sparse_categorical_crossentropy(labels)
+
+        opt.zero_grad()
+
+        loss.backward()
+
+        opt.step()
+
+        pred = out.argmax(axis=-1)
+
+        acc = (pred == labels).mean()
+
+        if step % 100 == 0:
+            print(f"Step {step+1} | Loss: {loss.numpy()} | Accuracy: {acc.numpy()}")
+

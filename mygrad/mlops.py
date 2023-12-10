@@ -1,9 +1,10 @@
 from __future__ import annotations
 from mygrad.lazy import LazyBuffer
 from mygrad.tensor import Function
-from mygrad.ops import LoadOps, BinaryOps, UnaryOps, ReduceOps
+from mygrad.ops import LoadOps, BinaryOps, UnaryOps, ReduceOps, TernaryOps
 from mygrad.helpers import DType, Tuple, argsort
-from typing import Optional, Tuple
+from typing import Optional, Tuple, cast
+import math
 
 
 class Neg(Function):
@@ -49,9 +50,21 @@ class Pow(Function):
   def forward(self, x: LazyBuffer, y: LazyBuffer) -> LazyBuffer:
     return x.e(BinaryOps.POW, y)
 
-class MatMul(Function):
-  def forward(self, x: LazyBuffer, y: LazyBuffer) -> LazyBuffer:
-    return x.e(BinaryOps.MATMUL, y)
+class Exp(Function):
+  def forward(self, x:LazyBuffer) -> LazyBuffer:
+    self.ret = x.e(BinaryOps.MUL, x.const(1/math.log(2))).e(UnaryOps.EXP2)
+    return self.ret
+
+  def backward(self, grad_output:LazyBuffer) -> LazyBuffer:
+    return self.ret.e(BinaryOps.MUL, grad_output)
+
+class Log(Function):
+  def forward(self, x:LazyBuffer) -> LazyBuffer:
+    self.x = x
+    return x.e(UnaryOps.LOG2).e(BinaryOps.MUL, x.const(math.log(2)))
+
+  def backward(self, grad_output:LazyBuffer) -> LazyBuffer:
+    return grad_output.e(BinaryOps.DIV, self.x)
 
 class Zero(Function):
   def forward(self, x: LazyBuffer) -> LazyBuffer: return x.const(0)
@@ -117,3 +130,45 @@ class Max(Function):
     max_is_1s = self.x.const(1.0).e(BinaryOps.SUB, self.x.e(BinaryOps.CMPLT, self.ret.expand(self.x.shape)))
     div = max_is_1s.r(ReduceOps.SUM, grad_output.shape).expand(self.x.shape)
     return max_is_1s.e(BinaryOps.DIV, div).e(BinaryOps.MUL, grad_output.expand(self.x.shape))
+
+class Pad(Function):
+  def forward(self, x:LazyBuffer, arg:Tuple[Tuple[int, int], ...]) -> LazyBuffer:
+    self.narg = tuple([(p[0], s+p[0]) for s,p in zip(x.shape, arg)])
+    return x.pad(arg)
+
+  def backward(self, grad_output:LazyBuffer) -> LazyBuffer:
+    return grad_output.shrink(self.narg)
+
+class Shrink(Function):
+  def forward(self, x:LazyBuffer, arg:Tuple[Tuple[int, int], ...]) -> LazyBuffer:
+    self.narg = tuple([(p[0], s-p[1]) for s,p in zip(x.shape, arg)])
+    return x.shrink(arg)
+
+  def backward(self, grad_output:LazyBuffer) -> LazyBuffer:
+    assert all(isinstance(x[0], int) and isinstance(x[1], int) for x in self.narg), "symbolic shrink does not support backward"
+    # need this cast because mypy cannot narrow the type even with assert
+    return grad_output.pad(cast(Tuple[Tuple[int, int], ...], self.narg))
+
+class Flip(Function):
+  def forward(self, x:LazyBuffer, axis:Tuple[int, ...]) -> LazyBuffer:
+    self.arg = tuple([-1 if i in set(axis) else 1 for i in range(len(x.shape))])
+    return x.stride(self.arg)
+
+  def backward(self, grad_output:LazyBuffer) -> LazyBuffer:
+    return grad_output.stride(self.arg)
+
+class Contiguous(Function):
+  def forward(self, x:LazyBuffer) -> LazyBuffer: return x.contiguous()
+  def backward(self, grad_output:LazyBuffer) -> LazyBuffer: return grad_output
+
+
+# ternary ops
+class Where(Function):
+  def forward(self, x:LazyBuffer, y:LazyBuffer, z:LazyBuffer) -> LazyBuffer:
+    self.x = x
+    return x.e(TernaryOps.WHERE, y, z)
+
+  def backward(self, grad_output:LazyBuffer) -> Tuple[None, Optional[LazyBuffer], Optional[LazyBuffer]]:
+    return None, \
+           self.x.e(TernaryOps.WHERE, grad_output, grad_output.const(0)) if self.needs_input_grad[1] else None, \
+           self.x.e(TernaryOps.WHERE, grad_output.const(0), grad_output) if self.needs_input_grad[2] else None

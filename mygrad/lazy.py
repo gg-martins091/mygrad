@@ -1,8 +1,8 @@
 # para tiper o retorno do metodo com o tipo da classe
 from __future__ import annotations
 import numpy as np
-from mygrad.ops import LoadOps, BinaryOps, UnaryOps, ReduceOps
-from mygrad.helpers import dtypes, DType, STV, DEBUG 
+from mygrad.ops import LoadOps, BinaryOps, UnaryOps, ReduceOps, TernaryOps
+from mygrad.helpers import dtypes, DType, STV, DEBUG
 class LazyBuffer:
     device = "CPU"
 
@@ -42,16 +42,20 @@ class LazyBuffer:
         return LazyBuffer.loadop(LoadOps.CONST, self.shape, self.dtype, self.device, v)
 
     def cast(self, dtype:DType, bitcast:bool=False) -> LazyBuffer: return LazyBuffer(self._np.view(dtype.np) if bitcast else self._np.astype(dtype.np))
+    def contiguous(self): return self
 
     def e(self, op, *srcs:LazyBuffer):
         if DEBUG >= 1: print(op, self, srcs)
         if op == UnaryOps.NEG: ret = -self._np
+        elif op == UnaryOps.EXP2: ret = np.exp2(self._np)
+        elif op == UnaryOps.LOG2: ret = np.log2(self._np)
         elif op == BinaryOps.ADD: ret = self._np + srcs[0]._np
         elif op == BinaryOps.SUB: ret = self._np - srcs[0]._np
         elif op == BinaryOps.MUL: ret = self._np * srcs[0]._np
         elif op == BinaryOps.DIV: ret = self._np / srcs[0]._np
         elif op == BinaryOps.CMPLT: ret = self._np < srcs[0]._np
         elif op == BinaryOps.MAX: ret = np.maximum(self._np, srcs[0]._np)
+        elif op == TernaryOps.WHERE: ret = np.where(self._np, srcs[0]._np, srcs[1]._np)
 
         # theese should not be here
         elif op == BinaryOps.POW: ret = self._np ** srcs[0]._np
@@ -69,6 +73,11 @@ class LazyBuffer:
         else: raise NotImplementedError(op)
 
     # move ops
-    def reshape(self, shape) -> LazyBuffer: return LazyBuffer(self._np.reshape(shape))
+    def reshape(self, shape) -> LazyBuffer:
+        print(self)
+        return LazyBuffer(self._np.reshape(shape))
     def expand(self, arg): return LazyBuffer(np.broadcast_to(self._np, arg))
     def permute(self, arg): return LazyBuffer(self._np.transpose(arg))
+    def pad(self, arg): return LazyBuffer(np.pad(self._np, arg))
+    def shrink(self, arg): return LazyBuffer(self._np[tuple(slice(p[0], p[1], None) for p in arg)])
+    def stride(self, arg): return LazyBuffer(self._np[tuple(slice(None, None, i) for i in arg)])
