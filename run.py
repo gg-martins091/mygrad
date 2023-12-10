@@ -5,7 +5,7 @@
 # from teenygrad.nn.optim import SGD
 
 from mygrad.tensor import Tensor
-from mygrad.helpers import fetch, dtypes
+from mygrad.helpers import fetch, dtypes, Timing
 from mygrad.nn.optim import SGD
 
 import gzip
@@ -54,8 +54,9 @@ opt = SGD([net.l1.weight, net.l2.weight], lr=3e-4)
 print("##### FETCH MNIST")
 X_train, Y_train, X_test, Y_test = fetch_mnist()
 
+steps = 250
 with Tensor.train():
-    for step in range(10):
+    for step in range(steps):
         samp = np.random.randint(0, X_train.shape[0], size=(64))
         # print(f"{samp=}")
 
@@ -84,3 +85,21 @@ with Tensor.train():
         if step % 1 == 0:
             print(f"Step {step+1} | Loss: {loss.numpy()} | Accuracy: {acc.numpy()}")
 
+
+
+with Timing("Time: "):
+  avg_acc = 0
+  for step in range(steps):
+    # random sample a batch
+    samp = np.random.randint(0, X_test.shape[0], size=(64))
+    batch = Tensor(X_test[samp], requires_grad=False)
+    # get the corresponding labels
+    labels = Y_test[samp]
+
+    # forward pass
+    out = net(batch)
+
+    # calculate accuracy
+    pred = out.argmax(axis=-1).numpy()
+    avg_acc += (pred == labels).mean()
+  print(f"Test Accuracy: {avg_acc / steps}")

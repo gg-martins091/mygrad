@@ -1,7 +1,7 @@
 from typing import Iterator, Tuple, Union, Final, Optional, Any
 from dataclasses import dataclass
 import numpy as np
-import os, functools, pathlib, hashlib, tempfile
+import os, functools, pathlib, hashlib, tempfile, contextlib, cProfile, time, pstats
 from urllib import request
 from tqdm import tqdm
 
@@ -66,3 +66,22 @@ def fetch(url:str, name:Optional[Union[pathlib.Path, str]]=None, allow_caching=n
         if (file_size:=os.stat(f.name).st_size) < total_length: raise RuntimeError(f"fetch size incomplete, {file_size} < {total_length}")
         pathlib.Path(f.name).rename(fp)
   return fp
+
+
+class Timing(contextlib.ContextDecorator):
+  def __init__(self, prefix="", on_exit=None, enabled=True): self.prefix, self.on_exit, self.enabled = prefix, on_exit, enabled
+  def __enter__(self): self.st = time.perf_counter_ns()
+  def __exit__(self, *exc):
+    self.et = time.perf_counter_ns() - self.st
+    if self.enabled: print(f"{self.prefix}{self.et*1e-6:.2f} ms"+(self.on_exit(self.et) if self.on_exit else ""))
+
+class Profiling(contextlib.ContextDecorator):
+  def __init__(self, enabled=True, sort='cumtime', frac=0.2): self.enabled, self.sort, self.frac = enabled, sort, frac
+  def __enter__(self):
+    self.pr = cProfile.Profile(timer=lambda: int(time.time()*1e9), timeunit=1e-6)
+    if self.enabled: self.pr.enable()
+  def __exit__(self, *exc):
+    if self.enabled:
+      self.pr.disable()
+      pstats.Stats(self.pr).strip_dirs().sort_stats(self.sort).print_stats(self.frac)
+

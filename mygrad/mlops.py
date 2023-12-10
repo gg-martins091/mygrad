@@ -9,7 +9,7 @@ import math
 
 class Neg(Function):
   def forward(self, x: LazyBuffer) -> LazyBuffer: return x.e(UnaryOps.NEG, x)
-  def backward(self, x: LazyBuffer) -> LazyBuffer: return x.e(UnaryOps.NEG, x)
+  def backward(self, grad:LazyBuffer) -> LazyBuffer: return grad.e(UnaryOps.NEG)
 
 class Less(Function):
   def forward(self, x:LazyBuffer, y:LazyBuffer) -> LazyBuffer:
@@ -46,8 +46,8 @@ class Div(Function):
     return x.e(BinaryOps.DIV, y)
 
   def backward(self, grad_output:LazyBuffer) -> Tuple[Optional[LazyBuffer], Optional[LazyBuffer]]:
-    return self.y.e(BinaryOps.MUL, grad_output) if self.needs_input_grad[0] else None, \
-           self.x.e(BinaryOps.MUL, grad_output) if self.needs_input_grad[1] else None
+    return grad_output.e(BinaryOps.DIV, self.y) if self.needs_input_grad[0] else None, \
+           grad_output.e(UnaryOps.NEG).e(BinaryOps.MUL, self.x).e(BinaryOps.DIV, self.y.e(BinaryOps.MUL, self.y)) if self.needs_input_grad[1] else None
 
 
 class Pow(Function):
