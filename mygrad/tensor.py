@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Union, Optional, Type, ClassVar, Tuple
+from typing import Union, Optional, Type, ClassVar, Tuple, List
 from mygrad.lazy import LazyBuffer
 from mygrad.ops import LoadOps, Device
 from mygrad.helpers import all_int, dtypes, DType, argfix
+from mygrad.realize import run_schedule
 import numpy as np
 import math
 import time
@@ -17,33 +18,42 @@ class Function:
         if self.requires_grad: self.parents = tensors
 
     def forward(self, *args, **kwargs): raise NotImplementedError(f"forward function not implemented for {type(self)}")
-    def backward(self, *args, **kwargs): raise RuntimeError(f"forward function not implemented for {type(self)}")
+    def backward(self, *args, **kwargs): raise RuntimeError(f"backward function not implemented for {type(self)}")
 
     @classmethod
     def apply(fxn:Type[Function], *x:Tensor, **kwargs) -> Tensor:
         ctx = fxn(x[0].device, *x)
         ret = Tensor(ctx.forward(*[t.lazydata for t in x], **kwargs), device=ctx.device, requires_grad=ctx.requires_grad)
-        # if ctx.requires_grad and not Tensor.no_grad: ret._ctx = ctx # used by autograd engine, we dont have it yet.
+        if ctx.requires_grad and not Tensor.no_grad: ret._ctx = ctx # used by autograd engine
         return ret
 
 import mygrad.mlops as mlops
 
 class Tensor():
-    __slots__= "lazydata", "grad", "requires_grad"
+    __slots__= "lazydata", "grad", "requires_grad", "grad", "_ctx"
+    __deletable__ = ('_ctx',)
     default_type:ClassVar[DType] = dtypes.float32
-    def __init__(self, data:Union[int, float, list, LazyBuffer], device:Optional[str]=None, requires_grad:Optional[bool]=None, dtype:Optional[DType]=None):
+    no_grad: ClassVar[bool] = False
+    def __init__(self, data:Union[int, float, list, LazyBuffer, np.ndarray], device:Optional[str]=None, requires_grad:Optional[bool]=None, dtype:Optional[DType]=None):
         device = Device.canonicalize(device)
         self.grad: Optional[Tensor] = None
 
         self.requires_grad = requires_grad
+        self._ctx: Optional[Function] = None
 
         if isinstance(data, LazyBuffer): assert dtype is None or dtype == data.dtype, "dtype does not match, and casting is not supported"
-        if data.__class__ is list:
+        elif data.__class__ is list:
             assert dtype is None or dtype.np is not None, f"{dtype} does not have a numpy type"
             data = LazyBuffer.fromCPU(np.array([] if data is None else data, dtype=(dtype or Tensor.default_type).np))
             pass
-        if isinstance(data, (int, float)):
+        elif isinstance(data, (int, float)):
             data = LazyBuffer.loadop(LoadOps.CONST, tuple(), dtypes.float32, device, data)
+        elif isinstance(data, np.ndarray):
+          assert dtype is None or dtype.np is not None, f"{dtype} doesn't have a numpy dtype"
+          if data.shape == ():
+            data = LazyBuffer.loadop(LoadOps.CONST, tuple(), dtype or dtypes.from_np(data.dtype), device, data.item())
+          else:
+            data = LazyBuffer.fromCPU(data.astype(dtype.np) if dtype is not None and dtype.np is not None else data)
 
         if not isinstance(data, LazyBuffer): raise RuntimeError(f"cant create Tensor from {data!r} with type {type(data)}")
         self.lazydata = data
@@ -67,14 +77,53 @@ class Tensor():
     def dtype(self) -> DType: return self.lazydata.dtype
 
 
+    def realize(self) -> Tensor:
+        run_schedule(self.lazydata.schedule())
+        return self
+
     # TODO: understand teenygrad's assign
     # i think for now this is fine
     def assign(self, x) -> Tensor:
         self.lazydata = x.lazydata
         return self
 
+    # ***** toposort and backward pass *****
+    def deepwalk(self):
+        def _deepwalk(node, visited, nodes):
+          visited.add(node)
+          if getattr(node, "_ctx", None):
+            for i in node._ctx.parents:
+              if i not in visited: _deepwalk(i, visited, nodes)
+            nodes.append(node)
+          return nodes
+        return _deepwalk(self, set(), [])
+
+    def backward(self) -> Tensor:
+        assert self.shape == tuple(), f"backward can only be called for scalar tensors, but it has shape {self.shape})"
+
+        # fill in the first grad with one. don't use Tensor.ones because we don't need contiguous
+        # this is "implicit gradient creation"
+        self.grad = Tensor(1, device=self.device, requires_grad=False)
+
+        dw = reversed(self.deepwalk())
+        for t0 in dw:
+          assert (t0.grad is not None)
+          grads = t0._ctx.backward(t0.grad.lazydata)
+          grads = [Tensor(g, device=self.device, requires_grad=False) if g is not None else None
+            for g in ([grads] if len(t0._ctx.parents) == 1 else grads)]
+          for t, g in zip(t0._ctx.parents, grads):
+            if g is not None and t.requires_grad:
+              assert g.shape == t.shape, f"grad shape must match tensor shape, {g.shape!r} != {t.shape!r}"
+              t.grad = g if t.grad is None else (t.grad + g)
+          del t0._ctx
+        return self
+
     # *** unary mlops ***
     def neg(self): return mlops.Neg.apply(self)
+
+
+    # *** math functions (unary) ***
+    def square(self): return self*self
 
     # *** binary mlops ***
     def _broadcasted(self, y: Union[Tensor, float], reverse=False) -> Tuple[Tensor,Tensor]:
@@ -149,6 +198,22 @@ class Tensor():
     # *** cast ops ***
     def cast(self, dtype:DType) -> Tensor: return mlops.Cast.apply(self, dtype=dtype) if self.dtype != dtype else self
 
+    # *** reduce ops ***
+    # TODO: understand this.
+    def _reduce(self, fxn:Type[Function], axis:Optional[Union[int, Tuple[int, ...]]]=None, keepdim=False) -> Tensor:
+        axis_: List[int] = list(range(len(self.shape))) if axis is None else ([axis] if isinstance(axis, int) else list(axis))
+        axis_ = [x if x >= 0 else x+len(self.shape) for x in axis_]
+        shape = tuple(s for i,s in enumerate(self.shape) if i not in axis_)
+        if 0 in self.shape and 0 not in shape: return Tensor.full(tuple(1 if s == 0 else s for s in self.shape) if keepdim else shape, {mlops.Sum: 0, mlops.Max: -float("inf")}[fxn])
+        ret = fxn.apply(self, new_shape=tuple([1 if i in axis_ else s for i,s in enumerate(self.shape)]))
+        return ret if keepdim else ret.reshape(shape=shape)
+
+    def sum(self, axis=None, keepdim=False): return self._reduce(mlops.Sum, axis, keepdim)
+    def mean(self, axis=None, keepdim=False):
+        assert all_int(self.shape), "does not support symbolic shape"
+        out = self.sum(axis=axis, keepdim=keepdim)
+        return out.mul(math.prod(out.shape)/math.prod(self.shape)) if 0 not in self.shape else out
+
     # *** movement mlops ***
     def reshape(self, shape, *args) -> Tensor:
         # new_shape = argfix(shape, *args)
@@ -175,13 +240,18 @@ class Tensor():
         return Tensor._loadop(LoadOps.RAND, math.prod((shape:=argfix(*shape))), arg=Tensor._seed, **kwargs).reshape(shape)
 
     # *** functional nn ops ***
-
     def linear(self, weights:Tensor, bias:Optional[Tensor]=None):
         ret = self.mul(weights) if len(weights.shape) == 1 else self.dot(weights)
         return ret.add(bias) if bias is not None else ret
 
-    # *** rng hlops ***
 
+    # *** mlops (unary) ***
+    def relu(self): return mlops.Relu.apply(self)
+
+    # *** activation functions (unary) ***
+    def leakyrelu(self, neg_slope=0.01): return self.relu() - (-neg_slope*self).relu()
+
+    # *** rng hlops ***
     @staticmethod
     def uniform(*shape, low=0.0, high=1.0, **kwargs) -> Tensor:
         dtype = kwargs.pop('dtype', Tensor.default_type)

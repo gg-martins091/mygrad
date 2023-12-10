@@ -2,8 +2,7 @@
 from __future__ import annotations
 import numpy as np
 from mygrad.ops import LoadOps, BinaryOps, UnaryOps, ReduceOps
-from mygrad.helpers import dtypes, DType, STV, DEBUG
-
+from mygrad.helpers import dtypes, DType, STV, DEBUG 
 class LazyBuffer:
     device = "CPU"
 
@@ -28,6 +27,8 @@ class LazyBuffer:
         elif op == LoadOps.EMPTY: return LazyBuffer(np.empty(shape, dtype=dtype.np))
         else: raise NotImplementedError(op)
 
+    def schedule(self, seen=None): return []
+
     @staticmethod
     def fromCPU(data) -> LazyBuffer:
         return LazyBuffer(data)
@@ -43,11 +44,14 @@ class LazyBuffer:
     def cast(self, dtype:DType, bitcast:bool=False) -> LazyBuffer: return LazyBuffer(self._np.view(dtype.np) if bitcast else self._np.astype(dtype.np))
 
     def e(self, op, *srcs:LazyBuffer):
+        if DEBUG >= 1: print(op, self, srcs)
         if op == UnaryOps.NEG: ret = -self._np
         elif op == BinaryOps.ADD: ret = self._np + srcs[0]._np
         elif op == BinaryOps.SUB: ret = self._np - srcs[0]._np
         elif op == BinaryOps.MUL: ret = self._np * srcs[0]._np
         elif op == BinaryOps.DIV: ret = self._np / srcs[0]._np
+        elif op == BinaryOps.CMPLT: ret = self._np < srcs[0]._np
+        elif op == BinaryOps.MAX: ret = np.maximum(self._np, srcs[0]._np)
 
         # theese should not be here
         elif op == BinaryOps.POW: ret = self._np ** srcs[0]._np
