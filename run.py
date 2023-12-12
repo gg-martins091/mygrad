@@ -76,10 +76,10 @@ with Tensor.train():
 
         opt.step()
 
-        pred = out.argmax(axis=-1)
         # print(f"{pred=}")
         # print(f"{labels=}")
 
+        pred = out.argmax(axis=-1)
         acc = (pred == labels).mean()
 
         if step % 1 == 0:

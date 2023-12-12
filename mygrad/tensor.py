@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import traceback
 from typing import Union, Optional, Type, ClassVar, Tuple, List, Sequence, Iterable, Set, Any
 from mygrad.lazy import LazyBuffer
 from mygrad.ops import LoadOps, Device
@@ -115,6 +116,7 @@ class Tensor():
         return _deepwalk(self, set(), [])
 
     def backward(self) -> Tensor:
+        print("tensor.backward()")
         assert self.shape == tuple(), f"backward can only be called for scalar tensors, but it has shape {self.shape})"
 
         # fill in the first grad with one. don't use Tensor.ones because we don't need contiguous
@@ -122,15 +124,27 @@ class Tensor():
         self.grad = Tensor(1, device=self.device, requires_grad=False)
 
         dw = reversed(self.deepwalk())
+
+        dw = reversed(self.deepwalk())
         for t0 in dw:
+          print(f"(before assert) t0={t0}")
           assert (t0.grad is not None)
+          print(f"{t0=}")
+          print(f"{t0._ctx=}")
+          print(f"{t0.grad=}")
+          print(f"{t0._ctx.parents=}")
           grads = t0._ctx.backward(t0.grad.lazydata)
+
+          print(f"{grads=}")
           grads = [Tensor(g, device=self.device, requires_grad=False) if g is not None else None
             for g in ([grads] if len(t0._ctx.parents) == 1 else grads)]
+          print(f"{grads=}")
           for t, g in zip(t0._ctx.parents, grads):
             if g is not None and t.requires_grad:
               assert g.shape == t.shape, f"grad shape must match tensor shape, {g.shape!r} != {t.shape!r}"
               t.grad = g if t.grad is None else (t.grad + g)
+          print(f"{t0=}")
+          print()
           del t0._ctx
         return self
 
@@ -143,6 +157,8 @@ class Tensor():
 
     # *** math functions (unary) ***
     def square(self): return self*self
+    def sign(self): return self / (self.abs() + 1e-10)
+    def abs(self): return self.relu() + (-self).relu()
 
     # *** binary mlops ***
     def _broadcasted(self, y: Union[Tensor, float], reverse=False) -> Tuple[Tensor,Tensor]:
@@ -290,7 +306,8 @@ class Tensor():
         ret = fxn.apply(self, new_shape=tuple([1 if i in axis_ else s for i,s in enumerate(self.shape)]))
         return ret if keepdim else ret.reshape(shape=shape)
 
-    def sum(self, axis=None, keepdim=False): return self._reduce(mlops.Sum, axis, keepdim)
+    def sum(self, axis=None, keepdim=False):
+        return self._reduce(mlops.Sum, axis, keepdim)
     def mean(self, axis=None, keepdim=False):
         assert all_int(self.shape), "does not support symbolic shape"
         out = self.sum(axis=axis, keepdim=keepdim)
@@ -326,6 +343,7 @@ class Tensor():
         m = self == self.max(axis=axis, keepdim=True)
         idx = m * Tensor.arange(self.shape[axis]-1,-1,-1, dtype=dtypes.int32, requires_grad=False, device=self.device).reshape(self.shape[axis], *[1]*(self.ndim-axis-1))
         return self.shape[axis]-idx.max(axis=axis, keepdim=keepdim)-1
+
     def argmin(self, axis=None, keepdim=False): return (-self).argmax(axis=axis, keepdim=keepdim)
 
 
@@ -380,8 +398,8 @@ class Tensor():
     #    - There's a special case where a permute is needed at the end:
     #        - if first Tensor passed in (expand dims) is not at dim 0
     #        - and following Tensors does not follow consecutively to the end of fancy indexing's dims
-    def __getitem__(self, val) -> Tensor: # val: Union[int, slice, Tensor, None, Ellipsis, Tuple[Union[int, slice, Tensor, None, Ellipsis], ...]]
-        print(f"__getitem__({val})")
+    # val: Union[int, slice, Tensor, None, Ellipsis, Tuple[Union[int, slice, Tensor, None, Ellipsis], ...]]
+    def __getitem__(self, val) -> Tensor: 
         def normalize_int(e, i, dim_sz):
             if -dim_sz <= e < dim_sz: return e if e != -1 else dim_sz-1
             raise IndexError(f"index {e} is out of bounds for dimension {i} with size {self.shape[i]}")
@@ -474,10 +492,16 @@ class Tensor():
         ret = self.mul(weights) if len(weights.shape) == 1 else self.dot(weights)
         return ret.add(bias) if bias is not None else ret
 
+    def binary_crossentropy(self, y:Tensor) -> Tensor:
+        return (-y*self.log() - (1-y)*(1-self).log()).mean()
+
     def sparse_categorical_crossentropy(self, Y, ignore_index=-1) -> Tensor:
         # NOTE: self is a logits input
         loss_mask = Y != ignore_index
+        print(f"{loss_mask=}")
+        print(f"{self.shape=}")
         y_counter = Tensor.arange(self.shape[-1], dtype=dtypes.int32, requires_grad=False, device=self.device).unsqueeze(0).expand(Y.numel(), self.shape[-1])
+        print(f"{y_counter=}")
         y = ((y_counter == Y.flatten().reshape(-1, 1)).where(-1.0, 0) * loss_mask.reshape(-1, 1)).reshape(*Y.shape, self.shape[-1])
         return self.log_softmax().mul(y).sum() / loss_mask.sum()
 
@@ -488,6 +512,7 @@ class Tensor():
 
     # *** activation functions (unary) ***
     def leakyrelu(self, neg_slope=0.01): return self.relu() - (-neg_slope*self).relu()
+    def softplus(self, beta=1): return (1/beta) * (1 + (self*beta).exp()).log()
 
     # *** rng hlops ***
     @staticmethod

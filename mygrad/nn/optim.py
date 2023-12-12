@@ -7,7 +7,8 @@ class Optimizer:
   def __init__(self, params: List[Tensor], lr: float):
     # if it's None, but being put into an optimizer, set it to True
     for x in params:
-      if x.requires_grad is None: x.requires_grad = True
+      if x.requires_grad is None:
+        x.requires_grad = True
 
     self.params: List[Tensor] = dedup([x for x in params if x.requires_grad])
     assert len(self.params) != 0, "optimizer must have at least one param"

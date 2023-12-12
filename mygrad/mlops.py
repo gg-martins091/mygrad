@@ -83,6 +83,7 @@ class Cast(Function):
 
 class Reshape(Function):
   def forward(self, x: LazyBuffer, shape) -> LazyBuffer:
+    print(f"Reshape: {x}")
     self.input_shape = x.shape
     return x.reshape(shape)
 
