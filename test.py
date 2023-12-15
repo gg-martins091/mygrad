@@ -1,3 +1,5 @@
+# from teenygrad.tensor import Tensor
+# from teenygrad.nn.optim import SGD
 from mygrad.tensor import Tensor
 from mygrad.nn.optim import SGD
 import numpy as np
@@ -62,7 +64,7 @@ def test():
     print(f"{net.l1.bias=}")
 
 
-    inp = Tensor([0.5])
+    inp = Tensor([0.49987])
 
     # res = net(inp)
     forward = net.l1(inp)
@@ -72,20 +74,20 @@ def test():
     forward = net.l2(forward)
     print(f"net.l2() = {forward}")
 
-    label = Tensor([1])
+    label = Tensor([0.9987])
     print(f"{label=}")
     loss = (label - forward).square().sum()
     print(f"{loss=}")
 
     print()
     print("loss.backward()")
-    backward = loss.backward()
+    backward = loss.backward().realize()
     print(f"{backward=}")
 
 
 
 
-test()
+# test()
 
 ## train:
 
@@ -94,6 +96,7 @@ def train():
     random_noise_perc = 0.1
 
 
+    opt = SGD([net.l1.weight, net.l1.bias, net.l2.weight, net.l2.bias], lr=3e-4)
     data, label = generate_data(train_data_size, random_noise_perc)
     x_train, y_train, x_test, y_test = data[:25000], label[:25000], data[25000:], label[25000:]
 
@@ -107,8 +110,8 @@ def train():
 
             out = net(batch)
 
-            # loss = out.binary_crossentropy(labels)
-            loss = (labels - out).square().sum()
+            loss = out.binary_crossentropy(labels)
+            # loss = (labels - out).square().sum()
             # print(f"{loss=}")
 
             opt.zero_grad()
@@ -118,6 +121,7 @@ def train():
             opt.step()
 
 
+            exit(1)
             # print(out == labels)
 
             if step % 10 == 0:
@@ -131,4 +135,4 @@ def train():
 
     print(net)
 
-# train()
+train()

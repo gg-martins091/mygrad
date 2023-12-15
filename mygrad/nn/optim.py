@@ -33,10 +33,13 @@ class SGD(Optimizer):
   # https://pytorch.org/docs/stable/generated/torch.optim.SGD.html
   def step(self) -> None:
     for i, t in enumerate(self.params):
-      assert t.grad is not None
+      assert t.grad is not None, "teste"
       g = t.grad.realize() + self.wd * t.detach()
       if self.momentum:
         self.b[i].assign(self.momentum * self.b[i] + g).realize()  # NOTE: self.b[i] is zero on the first run, no if required
         g = (g + self.momentum * self.b[i]) if self.nesterov else self.b[i]
-      t.assign(t.detach() - g * self.lr)
+      print(f"t.detach()={t.detach()}: {t.detach().lazydata._np}")
+      print(f"g={g}: {g.lazydata._np}")
+      print(f"self.lr={self.lr}: {self.lr.lazydata._np}")
+      # t.assign(t.detach() - g * self.lr)
     self.realize(self.b)

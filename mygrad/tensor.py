@@ -123,28 +123,21 @@ class Tensor():
         # this is "implicit gradient creation"
         self.grad = Tensor(1, device=self.device, requires_grad=False)
 
-        dw = reversed(self.deepwalk())
 
         dw = reversed(self.deepwalk())
         for t0 in dw:
-          print(f"(before assert) t0={t0}")
           assert (t0.grad is not None)
-          print(f"{t0=}")
-          print(f"{t0._ctx=}")
-          print(f"{t0.grad=}")
-          print(f"{t0._ctx.parents=}")
           grads = t0._ctx.backward(t0.grad.lazydata)
 
-          print(f"{grads=}")
           grads = [Tensor(g, device=self.device, requires_grad=False) if g is not None else None
             for g in ([grads] if len(t0._ctx.parents) == 1 else grads)]
-          print(f"{grads=}")
           for t, g in zip(t0._ctx.parents, grads):
             if g is not None and t.requires_grad:
               assert g.shape == t.shape, f"grad shape must match tensor shape, {g.shape!r} != {t.shape!r}"
-              t.grad = g if t.grad is None else (t.grad + g)
-          print(f"{t0=}")
-          print()
+              if t.grad is None:
+                  t.grad = g
+              else:
+                  t.grad = t.grad + g
           del t0._ctx
         return self
 
@@ -498,10 +491,7 @@ class Tensor():
     def sparse_categorical_crossentropy(self, Y, ignore_index=-1) -> Tensor:
         # NOTE: self is a logits input
         loss_mask = Y != ignore_index
-        print(f"{loss_mask=}")
-        print(f"{self.shape=}")
         y_counter = Tensor.arange(self.shape[-1], dtype=dtypes.int32, requires_grad=False, device=self.device).unsqueeze(0).expand(Y.numel(), self.shape[-1])
-        print(f"{y_counter=}")
         y = ((y_counter == Y.flatten().reshape(-1, 1)).where(-1.0, 0) * loss_mask.reshape(-1, 1)).reshape(*Y.shape, self.shape[-1])
         return self.log_softmax().mul(y).sum() / loss_mask.sum()
 

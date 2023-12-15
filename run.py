@@ -11,6 +11,7 @@ from mygrad.nn.optim import SGD
 import gzip
 import numpy as np
 
+np.set_printoptions(suppress=True)
 
 def fetch_mnist(tensors=False):
   parse = lambda file: np.frombuffer(gzip.open(file).read(), dtype=np.uint8).copy()
@@ -70,11 +71,15 @@ with Tensor.train():
 
         loss = out.sparse_categorical_crossentropy(labels)
 
+        print(f"{loss=}")
         opt.zero_grad()
+        print(f"{opt=}")
 
         loss.backward()
 
         opt.step()
+        exit(1)
+
 
         # print(f"{pred=}")
         # print(f"{labels=}")
